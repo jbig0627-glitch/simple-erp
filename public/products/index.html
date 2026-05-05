@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>月暈 ERP｜商品管理</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark px-4">
+    <span class="navbar-brand">月暈 ERP</span>
+    <div>
+      <a class="btn btn-outline-light btn-sm" href="index.html">商品管理</a>
+      <a class="btn btn-outline-light btn-sm" href="../orders/index.html">訂單管理</a>
+      <button class="btn btn-danger btn-sm" onclick="logout()">登出</button>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-primary text-white">
+        新增商品
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-5">
+            <input id="name" class="form-control" placeholder="商品名稱" />
+          </div>
+          <div class="col-md-4">
+            <input id="price" class="form-control" placeholder="價格" type="number" />
+          </div>
+          <div class="col-md-3">
+            <button class="btn btn-primary w-100" onclick="addProduct()">新增商品</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-secondary text-white">
+        搜尋與排序
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <input id="search" class="form-control" placeholder="搜尋商品名稱" oninput="loadProducts()" />
+          </div>
+          <div class="col-md-3">
+            <button class="btn btn-outline-secondary w-100" onclick="setSort('asc')">價格低 → 高</button>
+          </div>
+          <div class="col-md-3">
+            <button class="btn btn-outline-secondary w-100" onclick="setSort('desc')">價格高 → 低</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white">
+        商品列表
+      </div>
+      <div class="card-body">
+        <table class="table table-hover table-bordered align-middle text-center">
+          <thead class="table-dark">
+            <tr>
+              <th>ID</th>
+              <th>商品名稱</th>
+              <th>價格</th>
+              <th>庫存</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="productList"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const user = localStorage.getItem("user");
+
+    if (!user) {
+      alert("請先登入");
+      window.location.href = "../login.html";
+    }
+
+    function logout() {
+      localStorage.removeItem("user");
+      window.location.href = "../login.html";
+    }
+
+    let sortType = "";
+
+    async function loadProducts() {
+      const res = await fetch("/api/products");
+      let products = await res.json();
+
+      const keyword = document.getElementById("search").value;
+      if (keyword) {
+        products = products.filter(p => p.name.includes(keyword));
+      }
+
+      if (sortType === "asc") {
+        products.sort((a, b) => a.price - b.price);
+      } else if (sortType === "desc") {
+        products.sort((a, b) => b.price - a.price);
+      }
+
+      const list = document.getElementById("productList");
+      list.innerHTML = "";
+
+      products.forEach(p => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td>${p.name}</td>
+          <td>$${p.price}</td>
+          <td>
+           <input type="number" value="${p.stock || 0}" id="stock-${p.id}" class="form-control" style="width:100px;margin:auto;" />
+          </td>
+          <td>
+          <td>
+            <button class="btn btn-success btn-sm" onclick="updateStock(${p.id})">更新庫存</button>
+            <button class="btn btn-warning btn-sm" onclick="editProduct(${p.id}, '${p.name}', ${p.price})">編輯</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">刪除</button>
+          </td>
+        `;
+
+        list.appendChild(tr);
+      });
+    }
+
+    function setSort(type) {
+      sortType = type;
+      loadProducts();
+    }
+
+    async function addProduct() {
+      const name = document.getElementById("name").value;
+      const price = Number(document.getElementById("price").value);
+
+      if (!name || !price) {
+        alert("請輸入完整資料");
+        return;
+      }
+
+      await fetch("/api/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name, price })
+      });
+
+      document.getElementById("name").value = "";
+      document.getElementById("price").value = "";
+
+      loadProducts();
+    }
+
+    async function editProduct(id, oldName, oldPrice) {
+      const name = prompt("請輸入新的商品名稱", oldName);
+      const price = prompt("請輸入新的價格", oldPrice);
+
+      if (!name || !price) {
+        alert("資料不可空白");
+        return;
+      }
+
+      await fetch(`/api/products/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: name,
+          price: Number(price)
+        })
+      });
+
+      loadProducts();
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm("確定要刪除這個商品嗎？")) return;
+
+      await fetch(`/api/products/${id}`, {
+        method: "DELETE"
+      });
+
+      loadProducts();
+    }
+
+    loadProducts();
+async function updateStock(id) {
+  const stock = Number(document.getElementById("stock-" + id).value);
+
+  await fetch("/api/products/stock/" + id, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ stock })
+  });
+
+  alert("庫存更新成功");
+}
+  </script>
+</body>
+</html>

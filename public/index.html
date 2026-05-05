@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>簡易 ERP 商品管理</title>
+</head>
+<body>
+  <h1>簡易 ERP 商品管理</h1>
+
+  <input id="name" placeholder="商品名稱" />
+  <input id="price" placeholder="價格" type="number" />
+  <button onclick="addProduct()">新增商品</button>
+
+  <h2>商品列表</h2>
+  <ul id="productList"></ul>
+
+  <script>
+    async function loadProducts() {
+      const res = await fetch("/api/products");
+      const products = await res.json();
+
+      const list = document.getElementById("productList");
+      list.innerHTML = "";
+
+      products.forEach(p => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+          ${p.id}. ${p.name} - $${p.price}
+          <button onclick="editProduct(${p.id}, '${p.name}', ${p.price})">編輯</button>
+          <button onclick="deleteProduct(${p.id})">刪除</button>
+        `;
+
+        list.appendChild(li);
+      });
+    }
+
+    async function addProduct() {
+      const name = document.getElementById("name").value;
+      const price = Number(document.getElementById("price").value);
+
+      if (!name || !price) {
+        alert("請輸入完整資料");
+        return;
+      }
+
+      await fetch("/api/products", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name, price })
+      });
+
+      document.getElementById("name").value = "";
+      document.getElementById("price").value = "";
+
+      loadProducts();
+    }
+
+    async function editProduct(id, oldName, oldPrice) {
+      const name = prompt("請輸入新的商品名稱", oldName);
+      const price = prompt("請輸入新的價格", oldPrice);
+
+      if (!name || !price) {
+        alert("資料不可空白");
+        return;
+      }
+
+      await fetch(`/api/products/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: name,
+          price: Number(price)
+        })
+      });
+
+      loadProducts();
+    }
+
+    async function deleteProduct(id) {
+      await fetch(`/api/products/${id}`, {
+        method: "DELETE"
+      });
+
+      loadProducts();
+    }
+
+    loadProducts();
+  </script>
+</body>
+</html>
